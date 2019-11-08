@@ -50,7 +50,7 @@ namespace Paye.Controllers
                         if (applicant == null)
                             applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.Mobile) && i.Mobile == user.Mobile));
 
-
+                         
                         if (applicant != null)
                             throw new BusinessException("شما قبل عضو شده اید، وارد شوید");
                         else

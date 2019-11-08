@@ -50,11 +50,10 @@ namespace Paye.Controllers
                         if (applicant == null)
                             applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.Mobile) && i.Mobile == user.Mobile));
 
-                        TimeSpan span = DateTime.Now.Subtract(Convert.ToDateTime(applicant.ModifiedDate));
+                        
                         if (applicant == null)
                             throw new BusinessException("لطفا ابتدا عضو شوید");
-                        else if (span.TotalSeconds < 150)
-                            throw new BusinessException("برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید");
+                        
                         else
                         {
                             if (!string.IsNullOrEmpty(user.Token))

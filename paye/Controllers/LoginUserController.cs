@@ -50,13 +50,24 @@ namespace Paye.Controllers
                         if (applicant == null)
                             applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.Mobile) && i.Mobile == user.Mobile));
 
-                        TimeSpan span = DateTime.Now.Subtract(Convert.ToDateTime(applicant.ModifiedDate));
+                        
                         if (applicant == null)
-                            throw new BusinessException("لطفا ابتدا عضو شوید");                        
-                        else if (span.TotalSeconds < 150)
-                            throw new BusinessException("برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید");
-                        else                       
-                            SendSms.SendSimpleSms2(user.Mobile, "کد تایید ورود شما در پایه باش : " + smsCode);                                           
+                            throw new BusinessException("لطفا ابتدا عضو شوید");                                                
+                        else
+                        {
+                            var sms = ctx.Sms.OrderByDescending(i => i.createdate).FirstOrDefault(i => i.userId == applicant.Id);
+                            TimeSpan span = DateTime.Now.Subtract(Convert.ToDateTime(sms.createdate));
+                            if (span.TotalSeconds < 120)
+                                throw new BusinessException("برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید");
+                            Sms smsUser = new Sms();
+                            smsUser.userId = applicant.Id;
+                            smsUser.sms = char.Parse(smsCode.ToString());
+                            smsUser.createdate = DateTime.Now;
+                            ctx.Sms.Add(smsUser);
+                            ctx.SaveChanges();
+                            SendSms.SendSimpleSms2(user.Mobile, "کد تایید ورود شما در پایه باش : " + smsCode);
+                        }
+                            
                     }
                 }
                 catch (Exception e)
