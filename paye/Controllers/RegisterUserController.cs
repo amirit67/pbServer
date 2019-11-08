@@ -50,28 +50,35 @@ namespace Paye.Controllers
                         if (applicant == null)
                             applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.Mobile) && i.Mobile == user.Mobile));
 
-                        TimeSpan span = DateTime.Now.Subtract(Convert.ToDateTime(applicant.ModifiedDate));
+                         
                         if (applicant != null)
                             throw new BusinessException("شما قبل عضو شده اید، وارد شوید");
-                        else if (span.TotalSeconds < 150)
-                            throw new BusinessException("برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید");
                         else
                         {
-                            Sms smsUser = new Sms();
-                            smsUser.userId = applicant.Id;
-                            smsUser.sms = char.Parse(smsCode.ToString());
-                            smsUser.createdate = DateTime.Now;
-                            ctx.Sms.Add(smsUser);
+                            var sms = ctx.Sms.OrderByDescending(i => i.createdate).FirstOrDefault(i => i.userId == applicant.Id);
+                            TimeSpan span = DateTime.Now.Subtract(Convert.ToDateTime(sms.createdate));
+                            if (span.TotalSeconds < 120)
+                                throw new BusinessException("برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید");
 
-                            db.Users.Add(user);
-                            db.SaveChanges();                        
+                            else
+                            {
+                                Sms smsUser = new Sms();
+                                smsUser.userId = applicant.Id;
+                                smsUser.sms = char.Parse(smsCode.ToString());
+                                smsUser.createdate = DateTime.Now;
+                                ctx.Sms.Add(smsUser);
 
-                            id = db.Users
-                            .OrderByDescending(p => p.Id).ToList()
-                            .FirstOrDefault().UserId.ToString();
-                            res = id;
+                                db.Users.Add(user);
+                                db.SaveChanges();
 
-                            SendSms.SendSimpleSms2(user.Mobile, "کد تایید ورود شما در پایه باش : " + smsCode);
+                                id = db.Users
+                                .OrderByDescending(p => p.Id).ToList()
+                                .FirstOrDefault().UserId.ToString();
+                                res = id;
+
+                                SendSms.SendSimpleSms2(user.Mobile, "کد تایید ورود شما در پایه باش : " + smsCode);
+                            }
+
 
                         }
                     }
