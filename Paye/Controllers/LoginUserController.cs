@@ -1,0 +1,165 @@
+﻿using BaseSystemModel;
+using BaseSystemModel.Helper;
+using Paye.Models;
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Web;
+using System.Web.Http;
+//using BaseSystemModel.Helper;
+//using BusinessEmdadExpert.Expert;
+
+namespace Paye.Controllers
+{
+    public class LoginController : ApiController
+    {
+        PayeDBEntities db = new PayeDBEntities();
+
+        //[SanatyarWebCms.CustomExceptionFilter]
+        public HttpResponseMessage Post(UserItem user)
+        {
+            var httpRequest = HttpContext.Current.Request;
+            if (httpRequest.Headers["PayeBash"] != null)
+            {
+              
+
+                if (string.IsNullOrEmpty(user.Email))
+                    if (string.IsNullOrEmpty(user.Mobile))
+                        throw new BusinessException("خطا در پارامترهای ورودی");
+
+                var responseType = HttpStatusCode.OK;
+                var res = "";
+
+                string id;
+                var r = new Random();
+                var smsCode = r.Next(111111, 999999);
+                try
+                {
+                    using (var ctx = new PayeDBEntities())
+                    {
+                        var applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.UserId) && i.UserId.ToString() == user.UserId));
+                        if (applicant == null)
+                            applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.Email) && i.Gmail == user.Email));
+                        if (applicant == null)
+                            applicant = ctx.Users.FirstOrDefault(i => (!string.IsNullOrEmpty(user.Mobile) && i.Mobile == user.Mobile));
+
+                        
+                        if (applicant == null)
+                            throw new BusinessException("لطفا ابتدا عضو شوید");                                                
+                        else
+                        {
+                            var sms = ctx.Sms.OrderByDescending(i => i.createdate).FirstOrDefault(i => i.userId == applicant.Id);
+                            TimeSpan span = DateTime.Now.Subtract(Convert.ToDateTime(sms.createdate));
+                            if (span.TotalSeconds < 120)
+                                throw new BusinessException("برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید");
+                            Sms smsUser = new Sms();
+                            smsUser.userId = applicant.Id;
+                            smsUser.sms = char.Parse(smsCode.ToString());
+                            smsUser.createdate = DateTime.Now;
+                            ctx.Sms.Add(smsUser);
+                            ctx.SaveChanges();
+                            SendSms.SendSimpleSms2(user.Mobile, "کد تایید ورود شما در پایه باش : " + smsCode);
+                        }
+                            
+                    }
+                }
+                catch (Exception e)
+                {
+                    if(e.InnerException != null)
+                    {
+                        res = e.InnerException.Message;
+                    }
+                    else
+                        res = e.Message;
+                    responseType = HttpStatusCode.InternalServerError;
+                  
+                     if (res == "برای ارسال مجدد پیام لطفا 2 دقیقه منتظر بمانید")
+                        responseType = HttpStatusCode.ExpectationFailed;
+                     if (res == "شما قبل عضو شده اید، وارد شوید")
+                        responseType = HttpStatusCode.Forbidden;
+
+                    if (res == "لطفا ابتدا عضو شوید")
+                        responseType = System.Net.HttpStatusCode.BadRequest;
+                }
+
+
+                return new HttpResponseMessage(responseType)
+                {
+                    Content =
+                        new StringContent(res, Encoding.UTF8)
+                };
+            }
+            else
+                return null;
+
+        }
+
+        [HttpGet]
+        public HttpResponseMessage Get(string id)
+        {
+            var path = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory + "/Images/Paye/"+id+".jpg");//Server.MapPath("~/Images/Bisun/Users/user_empty.png");
+           var result = new HttpResponseMessage(HttpStatusCode.OK);
+            var stream2 = new FileStream(path, FileMode.Open, FileAccess.Read);
+            result.Content = new StreamContent(stream2);
+            result.Content.Headers.ContentType =
+                new MediaTypeHeaderValue("application/octet-stream");
+            return result;
+        }
+
+        public class UserItem
+        {
+            public string UserId { get; set; }
+            public string Name { get; set; }
+            public string Family { get; set; }
+             public string Mobile { get; set; }
+             public string City { get; set; }
+             public string Age { get; set; }
+             public string Token { get; set; }            
+            public string Type { get; set; }
+            public string SmsCode { get; set; }
+            public string Sign { get; set; }
+            public string Email { get; set; }        
+            public string Aboutme { get; set; }
+            public string Images { get; set; }
+            
+        }
+
+
+        public static Image ResizeImageByMinRatio(Image image, int minWidth, int minHeight)
+        {
+            var ratioX = (double)minWidth / image.Width;
+            var ratioY = (double)minHeight / image.Height;
+            var ratio = Math.Max(ratioX, ratioY);
+
+            var newWidth = (int)(image.Width * ratio);
+            var newHeight = (int)(image.Height * ratio);
+            var destRect = new Rectangle(0, 0, newWidth, newHeight);
+            var newImage = new Bitmap(newWidth, newHeight);
+
+            using (var graphics = Graphics.FromImage(newImage))
+                graphics.DrawImage(image, 0, 0, newWidth, newHeight);
+            using (var graphics = Graphics.FromImage(newImage))
+            {
+                graphics.CompositingMode = CompositingMode.SourceCopy;
+                graphics.CompositingQuality = CompositingQuality.HighQuality;
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                graphics.SmoothingMode = SmoothingMode.HighQuality;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                using (var wrapMode = new ImageAttributes())
+                {
+                    wrapMode.SetWrapMode(WrapMode.TileFlipXY);
+                    graphics.DrawImage(image, destRect, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
+                }
+            }
+            return newImage;
+        }
+
+    }
+}
